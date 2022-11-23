@@ -10,9 +10,10 @@ import pandas as pd
 import math
 from scipy.stats import norm
 from scipy.optimize import minimize
+import copy
 
 
-path = r"C:\Users\pc1aod\Documents\GitHub\ABmemLH\data\PPT09_ABstudy_2022-06-29_10h01.10.225.csv"
+#path = r"C:\Users\Adam Dede\Documents\GitHub\ABmemLH\data\PPT15_ABstudy_2022-06-30_09h08.37.319.csv"
 
 
 def findT1(trialDat):
@@ -47,6 +48,7 @@ def UVSDlike(memDat, c, d, s, trialTypes, returnVal):
     #what is this model's prediction of confidence ratings
     conRatPre = np.zeros([len(trialTypes), 6])
     for ii,key in enumerate(trialTypes):
+        
         #go through all the possible subtypes contributing to this trial type: 
         for val in trialTypes[key]: 
             typeCounts[ii] += sum(memDat['ABrefType'] == val)
@@ -57,7 +59,7 @@ def UVSDlike(memDat, c, d, s, trialTypes, returnVal):
         else:  
             conRatPre[ii,:] = np.diff(np.append(np.append(0, norm.cdf(c, loc=d[ii], scale=s[ii])),1)) 
     
-    returnConRatEmp = conRatEmp
+    returnConRatEmp = copy.copy(conRatEmp)
     #bump everything to avoid zeros
     conRatEmp += 1 
     conRatPre[conRatPre==0] = 1/sum(sum(conRatEmp)) 
@@ -167,23 +169,41 @@ def readDataFile(path):
     
     
     #set T2cor to 0 (wrong) for all 
-    ABDat['T2cor'] = 0
+    ABDat.loc[:,'T2cor'] = 0
     #set to 1 for trials on which T1 was present and the participant pressed 'left'
     ABDat.loc[(ABDat['key_resp_3.keys'] == 'left') & (ABDat['T2_PA'] == 'P'), 'T2cor'] = 1
     #set to 1 for trials on which T1 was absent and the participant pressed 'right'
     ABDat.loc[(ABDat['key_resp_3.keys'] == 'right') & (ABDat['T2_PA'] == 'A'), 'T2cor'] = 1
     
+    out = pd.Series()
+    #Overall AB for T1
+    out['ABT1overall'] = np.mean(ABDat['T1cor'])
+    out['ABT2overall'] = np.mean(ABDat['T2cor'])
+    
+    #cherck for participants who got the instructions for responding backwards
+    if out['ABT1overall'] < .5:
+        T1Temp = np.zeros(len(ABDat['T1cor']))
+        T1Temp[ABDat['T1cor'] == 0] = 1
+        T1Temp[ABDat['T1cor'] == 1] = 0
+        ABDat['T1cor'] = T1Temp
+        
+        T2Temp = np.zeros(len(ABDat['T1cor']))
+        T2Temp[ABDat['T2cor'] == 0] = 1
+        T2Temp[ABDat['T2cor'] == 1] = 0
+        ABDat['T2cor'] = T2Temp
+        
+        #Overall AB for T1
+        out['ABT1overall'] = np.mean(ABDat['T1cor'])
+        out['ABT2overall'] = np.mean(ABDat['T2cor'])
     
     #get the % correct for T1, T2, and T2|T1 for all trial types
-    out = pd.Series()
+    
     for cnd in ABDat['CondType'].unique():
         out[cnd +'_T1'] = np.mean(ABDat.loc[ABDat['CondType'] == cnd, 'T1cor'])
         out[cnd +'_T2'] = np.mean(ABDat.loc[ABDat['CondType'] == cnd, 'T2cor'])
         out[cnd +'_T2_T1'] = np.mean(ABDat.loc[ (ABDat['CondType'] == cnd) & (ABDat['T1cor'] == 1), 'T2cor'])
     
-    #Overall AB for T1
-    out['ABT1overall'] = np.mean(ABDat['T1cor'])
-    out['ABT2overall'] = np.mean(ABDat['T2cor'])
+
     
     #get the memory data
     memDat = df[df['TrialType'] == 'Mem']
@@ -220,6 +240,23 @@ def readDataFile(path):
     memDat.loc[(memDat['ABrefType'] != 'novel') & (memDat['oldNew'] == 1), 'memCor'] = 1
     memDat.loc[(memDat['ABrefType'] == 'novel') & (memDat['oldNew'] == 0), 'memCor'] = 1
     
+#    #test to see if the subject switched round the memory responses 
+#    if np.mean(memDat.loc[memDat['ABrefType'] == 'PP5cor', 'memCor']) < .5:
+#        tempCon = np.zeros(len(memDat['MemResponse.keys']))
+#        conOrig = memDat['MemResponse.keys']
+#        tempCon[conOrig==1] = 6
+#        tempCon[conOrig==2] = 5
+#        tempCon[conOrig==3] = 4
+#        tempCon[conOrig==4] = 3
+#        tempCon[conOrig==5] = 2
+#        tempCon[conOrig==6] = 1
+#        memDat['MemResponse.keys'] = tempCon
+#        memDat['oldNew'] = 0
+#        memDat.loc[memDat['MemResponse.keys']>3, 'oldNew'] = 1
+#        memDat['memCor'] = 0
+#        memDat.loc[(memDat['ABrefType'] != 'novel') & (memDat['oldNew'] == 1), 'memCor'] = 1
+#        memDat.loc[(memDat['ABrefType'] == 'novel') & (memDat['oldNew'] == 0), 'memCor'] = 1
+        
     
     out['targMem'] = np.mean(memDat.loc[(memDat['ABrefType'] != 'distracter') & (memDat['ABrefType'] != 'skip'), 'memCor'])
     out['distMem'] = np.mean(memDat.loc[(memDat['ABrefType'] == 'distracter') | (memDat['ABrefType'] == 'novel'), 'memCor'])
@@ -242,6 +279,7 @@ def readDataFile(path):
     
 
     
+#test = readDataFile(path)
     
     
     
